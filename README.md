@@ -12,5 +12,6 @@ To run these I'm just doing `elm reactor`, but you can check them out in Ellie b
 3. Both <https://ellie-app.com/7pGSVjCHMkHa1> but sorted by the second step value.
   Also I want to redo this one it's too wild.
   Also drop that first row obviously.
+4. Part 1 <https://ellie-app.com/7pTWm9tvYZta1> Part 2 which also solves 1 without all that parsing: <https://ellie-app.com/7pTVkDcqJsca1>
 
 To be continued
