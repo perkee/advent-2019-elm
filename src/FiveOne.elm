@@ -16,7 +16,8 @@ inputTape =
 
 
 
---"3,0,4,0,99"
+--"3,9,8,9,10,9,4,9,99,-1,8" -- Using position mode, consider whether the input is equal to 8; output 1 (if it is) or 0 (if it is not).
+-- "3,12,6,12,15,1,13,14,13,4,13,99,-1,0,1,9" -- outputs 1 if input /= 0 or 0 if input == 0
 
 
 type alias Tape =
@@ -141,6 +142,38 @@ keepAddingModes remainingCode { opNum, modes } =
             else
                 this
 
+        ( 5, l ) ->
+            if l < 2 then
+                -- output from
+                keepAddingModes nextCode nextParts
+
+            else
+                this
+
+        ( 6, l ) ->
+            if l < 2 then
+                -- output from
+                keepAddingModes nextCode nextParts
+
+            else
+                this
+
+        ( 7, l ) ->
+            -- add
+            if l < 3 then
+                keepAddingModes nextCode nextParts
+
+            else
+                this
+
+        ( 8, l ) ->
+            -- add
+            if l < 3 then
+                keepAddingModes nextCode nextParts
+
+            else
+                this
+
         ( n, _ ) ->
             this
 
@@ -170,7 +203,8 @@ type State
     | JustComputed Int Int -- Addr, Value,
     | JustWrote
     | JustOutput Operand Int -- Addr, Value
-    | Done Int
+    | ComputedJump Int Bool -- Destination, Will Jump,
+    | Done Int -- Value in Cell 0
     | Error String
 
 
@@ -184,6 +218,19 @@ type Op
     | Mul Operand Operand Operand -- left operand, right operand, dest addr
     | Input Operand Operand -- input value (will be constant 1), dest addr
     | Output Operand -- source addr
+    | JNZ Operand Operand -- input operand, destination address
+    | JZ Operand Operand -- input operand, destination address
+    | Lt Operand Operand Operand -- left operand, right operand, dest addr for value
+    | Eq Operand Operand Operand -- left operand, right operand, dest addr
+
+
+compareToInt : (comparable -> comparable -> Bool) -> comparable -> comparable -> Int
+compareToInt fn a b =
+    if fn a b then
+        1
+
+    else
+        0
 
 
 updateState : Model -> Parts -> State
@@ -246,7 +293,7 @@ updateState model { opNum, modes } =
 
                 _ ->
                     Error <|
-                        "Not enough modes for Mull at"
+                        "Not enough modes for MUL at"
                             ++ String.fromInt model.point
                             ++ ", need 3 got "
                             ++ (modes |> List.length |> String.fromInt)
@@ -259,8 +306,9 @@ updateState model { opNum, modes } =
                     of
                         Just destOperand ->
                             JustRead <|
-                                Input (Immediate 1) destOperand
+                                Input (Immediate 5) destOperand
 
+                        -- hard coding the input value because it's easier
                         Nothing ->
                             Error <|
                                 "could not get one value after point during INPUT"
@@ -290,7 +338,111 @@ updateState model { opNum, modes } =
 
                 _ ->
                     Error <|
-                        "Not enough modes for MUL at"
+                        "Not enough modes for OUTPUT at"
+                            ++ String.fromInt model.point
+                            ++ ", need 1 got "
+                            ++ (modes |> List.length |> String.fromInt)
+
+        5 ->
+            case modes of
+                [ newPoint, input ] ->
+                    case
+                        ( Array.get (model.point + 1) model.tape |> Maybe.map (cellToInt >> input)
+                        , Array.get (model.point + 2) model.tape |> Maybe.map (cellToInt >> newPoint)
+                        )
+                    of
+                        ( Just inputOperand, Just newPointOperand ) ->
+                            JustRead <|
+                                JNZ inputOperand
+                                    newPointOperand
+
+                        ( _, _ ) ->
+                            Error <|
+                                "could not get 2 values after point during JNZ"
+                                    ++ String.fromInt model.point
+
+                _ ->
+                    Error <|
+                        "Not enough modes for JNZ at "
+                            ++ String.fromInt model.point
+                            ++ ", need 2 got "
+                            ++ (modes |> List.length |> String.fromInt)
+
+        6 ->
+            case modes of
+                [ newPoint, input ] ->
+                    case
+                        ( Array.get (model.point + 1) model.tape |> Maybe.map (cellToInt >> input)
+                        , Array.get (model.point + 2) model.tape |> Maybe.map (cellToInt >> newPoint)
+                        )
+                    of
+                        ( Just inputOperand, Just newPointOperand ) ->
+                            JustRead <|
+                                JZ inputOperand
+                                    newPointOperand
+
+                        ( _, _ ) ->
+                            Error <|
+                                "could not get 2 values after point during JNZ"
+                                    ++ String.fromInt model.point
+
+                _ ->
+                    Error <|
+                        "Not enough modes for JZ at"
+                            ++ String.fromInt model.point
+                            ++ ", need 2 got "
+                            ++ (modes |> List.length |> String.fromInt)
+
+        7 ->
+            case modes of
+                [ dest, right, left ] ->
+                    case
+                        ( Array.get (model.point + 1) model.tape |> Maybe.map (cellToInt >> left)
+                        , Array.get (model.point + 2) model.tape |> Maybe.map (cellToInt >> right)
+                        , Array.get (model.point + 3) model.tape |> Maybe.map (cellToInt >> dest)
+                        )
+                    of
+                        ( Just leftOperand, Just rightOperand, Just destOperand ) ->
+                            JustRead <|
+                                Lt leftOperand
+                                    rightOperand
+                                    destOperand
+
+                        ( _, _, _ ) ->
+                            Error <|
+                                "could not get three values after point during LT"
+                                    ++ String.fromInt model.point
+
+                _ ->
+                    Error <|
+                        "Not enough modes for LT at"
+                            ++ String.fromInt model.point
+                            ++ ", need 3 got "
+                            ++ (modes |> List.length |> String.fromInt)
+
+        8 ->
+            case modes of
+                [ dest, right, left ] ->
+                    case
+                        ( Array.get (model.point + 1) model.tape |> Maybe.map (cellToInt >> left)
+                        , Array.get (model.point + 2) model.tape |> Maybe.map (cellToInt >> right)
+                        , Array.get (model.point + 3) model.tape |> Maybe.map (cellToInt >> dest)
+                        )
+                    of
+                        ( Just leftOperand, Just rightOperand, Just destOperand ) ->
+                            JustRead <|
+                                Eq leftOperand
+                                    rightOperand
+                                    destOperand
+
+                        ( _, _, _ ) ->
+                            Error <|
+                                "could not get three values after point during LT"
+                                    ++ String.fromInt model.point
+
+                _ ->
+                    Error <|
+                        "Not enough modes for GQ at"
                             ++ String.fromInt model.point
                             ++ ", need 3 got "
                             ++ (modes |> List.length |> String.fromInt)
@@ -332,13 +484,13 @@ math2 errstring fn left right dest =
             Error errstring
 
 
-math1 : String -> (Int -> Int) -> Maybe Int -> Operand -> State
-math1 errstring fn input dest =
+math1 : String -> (Int -> a) -> Maybe Int -> Operand -> (Int -> a -> State) -> State
+math1 errstring fn input dest stateConstructor =
     case
         ( input, dest )
     of
         ( Just iv, Position destAddr ) ->
-            JustComputed destAddr <| fn iv
+            stateConstructor destAddr <| fn iv
 
         ( _, Immediate value ) ->
             Error <|
@@ -346,6 +498,18 @@ math1 errstring fn input dest =
                     ++ String.fromInt value
                     ++ ") for a destination while performing "
                     ++ errstring
+
+        ( _, _ ) ->
+            Error <| "could not read values to " ++ errstring ++ " from addresses"
+
+
+mathJump : String -> (Int -> a) -> Maybe Int -> Maybe Int -> (Int -> a -> State) -> State
+mathJump errstring fn input dest stateConstructor =
+    case
+        ( input, dest )
+    of
+        ( Just iv, Just dv ) ->
+            stateConstructor dv <| fn iv
 
         ( _, _ ) ->
             Error <| "could not read values to " ++ errstring ++ " from addresses"
@@ -371,6 +535,101 @@ getOutput tape operand =
             Error <| "Trying to output from " ++ printOperand operand ++ " but got nothing."
 
 
+execute : Op -> Model -> Model
+execute op model =
+    case op of
+        Add left right dest ->
+            { model
+                | state =
+                    math2
+                        (printOperands "ADD" [ left, right ])
+                        (+)
+                        (getInt model.tape left)
+                        (getInt model.tape right)
+                        dest
+                , point = model.point + 4
+            }
+
+        Mul left right dest ->
+            { model
+                | state =
+                    math2
+                        (printOperands "MUL" [ left, right ])
+                        (*)
+                        (getInt model.tape left)
+                        (getInt model.tape right)
+                        dest
+                , point = model.point + 4
+            }
+
+        Input input dest ->
+            { model
+                | state =
+                    math1
+                        (printOperands "INPUT" [ input ])
+                        identity
+                        (getInt model.tape input)
+                        dest
+                        JustComputed
+                , point = model.point + 2
+            }
+
+        Output source ->
+            { model
+                | state =
+                    getOutput model.tape source
+                , point = model.point + 2
+            }
+
+        JNZ input point ->
+            { model
+                | state =
+                    mathJump
+                        (printOperands "JNZ" [ input ])
+                        ((/=) 0)
+                        (getInt model.tape input)
+                        (getInt model.tape point)
+                        ComputedJump
+                , point = model.point + 3
+            }
+
+        JZ input point ->
+            { model
+                | state =
+                    mathJump
+                        (printOperands "JZ" [ input ])
+                        ((==) 0)
+                        (getInt model.tape input)
+                        (getInt model.tape point)
+                        ComputedJump
+                , point = model.point + 3
+            }
+
+        Lt left right dest ->
+            { model
+                | state =
+                    math2
+                        (printOperands "LT" [ left, right ])
+                        (compareToInt (<))
+                        (getInt model.tape left)
+                        (getInt model.tape right)
+                        dest
+                , point = model.point + 4
+            }
+
+        Eq left right dest ->
+            { model
+                | state =
+                    math2
+                        (printOperands "EQ" [ left, right ])
+                        (compareToInt (==))
+                        (getInt model.tape left)
+                        (getInt model.tape right)
+                        dest
+                , point = model.point + 4
+            }
+
+
 stepModel : Model -> Model
 stepModel model =
     case model.state of
@@ -381,48 +640,7 @@ stepModel model =
             read model
 
         JustRead op ->
-            case op of
-                Add left right dest ->
-                    { model
-                        | state =
-                            math2
-                                (printOperands "ADD" [ left, right ])
-                                (+)
-                                (getInt model.tape left)
-                                (getInt model.tape right)
-                                dest
-                        , point = model.point + 4
-                    }
-
-                Mul left right dest ->
-                    { model
-                        | state =
-                            math2
-                                (printOperands "MUL" [ left, right ])
-                                (*)
-                                (getInt model.tape left)
-                                (getInt model.tape right)
-                                dest
-                        , point = model.point + 4
-                    }
-
-                Input input dest ->
-                    { model
-                        | state =
-                            math1
-                                (printOperands "INPUT" [ input ])
-                                identity
-                                (getInt model.tape input)
-                                dest
-                        , point = model.point + 2
-                    }
-
-                Output source ->
-                    { model
-                        | state =
-                            getOutput model.tape source
-                        , point = model.point + 2
-                    }
+            execute op model
 
         JustComputed addr value ->
             case Array.get addr model.tape of
@@ -436,6 +654,18 @@ stepModel model =
                     { model
                         | state = Error <| "could write but cannot remember the old value at " ++ String.fromInt addr
                     }
+
+        ComputedJump addr willJump ->
+            if willJump then
+                { model
+                    | point = addr
+                    , state = JustWrote
+                }
+
+            else
+                { model
+                    | state = JustWrote
+                }
 
         JustOutput operand value ->
             read
@@ -583,40 +813,68 @@ printOperands label nums =
     label :: (nums |> List.map printOperand) |> String.join " "
 
 
-viewState : State -> Html msg
-viewState s =
+printOp : Op -> String
+printOp op =
+    case op of
+        Add a b c ->
+            printOperands "MUL" [ a, b, c ]
+
+        Mul a b c ->
+            printOperands "MUL" [ a, b, c ]
+
+        Input a b ->
+            printOperands "INPUT" [ a, b ]
+
+        Output a ->
+            printOperands "OUTPUT" [ a ]
+
+        JNZ a b ->
+            printOperands "JNZ" [ a, b ]
+
+        JZ a b ->
+            printOperands "JZ" [ a, b ]
+
+        Lt a b c ->
+            printOperands "LT" [ a, b, c ]
+
+        Eq a b c ->
+            printOperands "EQ" [ a, b, c ]
+
+
+printState : State -> String
+printState s =
     case s of
         Start ->
-            H.text "Start"
+            "Start"
 
         JustRead op ->
-            case op of
-                Add a b c ->
-                    printOperands "MUL" [ a, b, c ] |> H.text
-
-                Mul a b c ->
-                    printOperands "MUL" [ a, b, c ] |> H.text
-
-                Input a b ->
-                    printOperands "INPUT" [ a, b ] |> H.text
-
-                Output a ->
-                    printOperands "OUTPUT" [ a ] |> H.text
+            printOp op
 
         JustOutput operand value ->
-            H.text <| printOperands "Output: " [ operand ] ++ ": " ++ String.fromInt value
+            printOperands "Output: " [ operand ] ++ ": " ++ String.fromInt value
 
         JustComputed addr value ->
-            H.text <| String.fromInt addr ++ " <= " ++ String.fromInt value
+            String.fromInt addr ++ " <= " ++ String.fromInt value
+
+        ComputedJump dest jump ->
+            "will "
+                ++ (if jump then
+                        ""
+
+                    else
+                        "not "
+                   )
+                ++ "jump to "
+                ++ String.fromInt dest
 
         Error errString ->
-            H.text <| "error " ++ errString
+            "error " ++ errString
 
         JustWrote ->
-            H.text "wrote"
+            "wrote"
 
         Done val ->
-            H.text <| "done: " ++ String.fromInt val
+            "done: " ++ String.fromInt val
 
 
 compose2 : (a -> b -> c) -> (c -> d) -> a -> b -> d
@@ -693,7 +951,7 @@ view model =
                             "play"
                 ]
             ]
-        , H.div [] [ viewState model.state ]
+        , H.div [] [ printState model.state |> H.text ]
         , H.div []
             [ List.map printOutput model.outputs
                 |> printStrings
