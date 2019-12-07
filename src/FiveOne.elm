@@ -3,6 +3,7 @@ module FiveOne exposing (main)
 import Array exposing (Array)
 import Browser
 import Css
+import Dict
 import Html.Styled as H exposing (Html)
 import Html.Styled.Attributes as HA
 import Html.Styled.Events as HE
@@ -76,7 +77,7 @@ type alias ModeNumber =
 
 
 type alias Parts =
-    { opNum : OpNumber
+    { opCode : OpCode
     , modes : List (Int -> Operand)
     }
 
@@ -92,96 +93,53 @@ modeNumberToIntToOperand m =
             Position
 
 
-keepAddingModes : Int -> Parts -> Parts
-keepAddingModes remainingCode { opNum, modes } =
-    let
-        nextCode =
-            remainingCode // 10
+numArgsForCode : OpCode -> Int
+numArgsForCode n =
+    case n of
+        AddCode ->
+            3
 
-        nextParts =
-            { opNum = opNum
-            , modes = (remainderBy 10 remainingCode |> modeNumberToIntToOperand) :: modes
+        MulCode ->
+            3
+
+        InputCode ->
+            1
+
+        OutputCode ->
+            1
+
+        JzCode ->
+            2
+
+        JnzCode ->
+            2
+
+        LtCode ->
+            3
+
+        EqCode ->
+            3
+
+        _ ->
+            0
+
+
+keepAddingModes : Int -> Parts -> Parts
+keepAddingModes remainingCode parts =
+    if List.length parts.modes < numArgsForCode parts.opCode then
+        keepAddingModes (remainingCode // 10)
+            { parts
+                | modes = (remainderBy 10 remainingCode |> modeNumberToIntToOperand) :: parts.modes
             }
 
-        this =
-            Parts opNum modes
-    in
-    case ( opNum, List.length modes ) of
-        ( 99, _ ) ->
-            this
-
-        ( 1, l ) ->
-            -- add
-            if l < 3 then
-                keepAddingModes nextCode nextParts
-
-            else
-                this
-
-        ( 2, l ) ->
-            -- mul
-            if l < 3 then
-                keepAddingModes nextCode nextParts
-
-            else
-                this
-
-        ( 3, l ) ->
-            if l < 1 then
-                -- input to
-                keepAddingModes nextCode nextParts
-
-            else
-                this
-
-        ( 4, l ) ->
-            if l < 1 then
-                -- output from
-                keepAddingModes nextCode nextParts
-
-            else
-                this
-
-        ( 5, l ) ->
-            if l < 2 then
-                -- output from
-                keepAddingModes nextCode nextParts
-
-            else
-                this
-
-        ( 6, l ) ->
-            if l < 2 then
-                -- output from
-                keepAddingModes nextCode nextParts
-
-            else
-                this
-
-        ( 7, l ) ->
-            -- add
-            if l < 3 then
-                keepAddingModes nextCode nextParts
-
-            else
-                this
-
-        ( 8, l ) ->
-            -- add
-            if l < 3 then
-                keepAddingModes nextCode nextParts
-
-            else
-                this
-
-        ( n, _ ) ->
-            this
+    else
+        parts
 
 
 intToParts : OpNumber -> Parts
 intToParts i =
     keepAddingModes (i // 100)
-        { opNum = remainderBy 100 i
+        { opCode = remainderBy 100 i |> intToOpCode
         , modes = []
         }
 
@@ -213,6 +171,36 @@ type Operand
     | Immediate Int
 
 
+type OpCode
+    = UnknownCode Int
+    | DoneCode
+    | AddCode
+    | MulCode
+    | InputCode
+    | OutputCode
+    | JnzCode
+    | JzCode
+    | LtCode
+    | EqCode
+
+
+intToOpCode : Int -> OpCode
+intToOpCode i =
+    Dict.fromList
+        [ ( 99, DoneCode )
+        , ( 1, AddCode )
+        , ( 2, MulCode )
+        , ( 3, InputCode )
+        , ( 4, OutputCode )
+        , ( 5, JnzCode )
+        , ( 6, JzCode )
+        , ( 7, LtCode )
+        , ( 8, EqCode )
+        ]
+        |> Dict.get i
+        |> Maybe.withDefault (UnknownCode i)
+
+
 type Op
     = Add Operand Operand Operand -- left operand, right operand, dest addr
     | Mul Operand Operand Operand -- left operand, right operand, dest addr
@@ -234,9 +222,9 @@ compareToInt fn a b =
 
 
 updateState : Model -> Parts -> State
-updateState model { opNum, modes } =
-    case opNum of
-        99 ->
+updateState model { opCode, modes } =
+    case opCode of
+        DoneCode ->
             case Array.get 0 model.tape of
                 Just val ->
                     Done <| cellToInt val
@@ -244,7 +232,7 @@ updateState model { opNum, modes } =
                 Nothing ->
                     Error "Done but could not get value at 0"
 
-        1 ->
+        AddCode ->
             case modes of
                 [ dest, right, left ] ->
                     case
@@ -271,7 +259,7 @@ updateState model { opNum, modes } =
                             ++ ", need 3 got "
                             ++ (modes |> List.length |> String.fromInt)
 
-        2 ->
+        MulCode ->
             case modes of
                 [ dest, right, left ] ->
                     case
@@ -298,7 +286,7 @@ updateState model { opNum, modes } =
                             ++ ", need 3 got "
                             ++ (modes |> List.length |> String.fromInt)
 
-        3 ->
+        InputCode ->
             case modes of
                 [ dest ] ->
                     case
@@ -321,7 +309,7 @@ updateState model { opNum, modes } =
                             ++ ", need 1 got "
                             ++ (modes |> List.length |> String.fromInt)
 
-        4 ->
+        OutputCode ->
             case modes of
                 [ source ] ->
                     case
@@ -343,7 +331,7 @@ updateState model { opNum, modes } =
                             ++ ", need 1 got "
                             ++ (modes |> List.length |> String.fromInt)
 
-        5 ->
+        JnzCode ->
             case modes of
                 [ newPoint, input ] ->
                     case
@@ -368,7 +356,7 @@ updateState model { opNum, modes } =
                             ++ ", need 2 got "
                             ++ (modes |> List.length |> String.fromInt)
 
-        6 ->
+        JzCode ->
             case modes of
                 [ newPoint, input ] ->
                     case
@@ -393,7 +381,7 @@ updateState model { opNum, modes } =
                             ++ ", need 2 got "
                             ++ (modes |> List.length |> String.fromInt)
 
-        7 ->
+        LtCode ->
             case modes of
                 [ dest, right, left ] ->
                     case
@@ -420,7 +408,7 @@ updateState model { opNum, modes } =
                             ++ ", need 3 got "
                             ++ (modes |> List.length |> String.fromInt)
 
-        8 ->
+        EqCode ->
             case modes of
                 [ dest, right, left ] ->
                     case
@@ -447,7 +435,7 @@ updateState model { opNum, modes } =
                             ++ ", need 3 got "
                             ++ (modes |> List.length |> String.fromInt)
 
-        n ->
+        UnknownCode n ->
             Error <| "unknown op code " ++ String.fromInt n
 
 
@@ -700,7 +688,7 @@ update msg model =
 
 
 type CellAt
-    = OpCode
+    = Current
     | Arg
     | Dest
     | Rest
@@ -710,7 +698,7 @@ intToCellAt : Int -> CellAt
 intToCellAt n =
     case n of
         0 ->
-            OpCode
+            Current
 
         1 ->
             Arg
@@ -732,7 +720,7 @@ viewCell point ( index, cell ) =
         , HA.css
             [ Css.backgroundColor <|
                 case index - point |> intToCellAt of
-                    OpCode ->
+                    Current ->
                         Css.rgb 12 128 12
 
                     Arg ->
