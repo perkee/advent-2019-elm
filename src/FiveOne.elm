@@ -221,6 +221,96 @@ compareToInt fn a b =
         0
 
 
+makeOperand : Model -> Int -> (Int -> Operand) -> Maybe Operand
+makeOperand model index mode =
+    Array.get (model.point + index + 1) model.tape |> Maybe.map (cellToInt >> mode)
+
+
+valuesErr : String -> Int -> Int -> State
+valuesErr errString shouldLength point =
+    Error <|
+        "could not get "
+            ++ String.fromInt shouldLength
+            ++ " values after point during "
+            ++ errString
+            ++ " at "
+            ++ String.fromInt point
+
+
+modesErr : String -> Int -> Int -> Int -> State
+modesErr errString shouldLength length point =
+    Error <|
+        "Not enough modes for "
+            ++ errString
+            ++ " at "
+            ++ String.fromInt point
+            ++ ": need "
+            ++ String.fromInt shouldLength
+            ++ " got "
+            ++ (length |> String.fromInt)
+
+
+justReadFrom3 : (Operand -> Operand -> Operand -> Op) -> List (Int -> Operand) -> Model -> String -> State
+justReadFrom3 makeOp modes model errString =
+    case modes |> List.reverse |> List.indexedMap (makeOperand model) of
+        [ Just leftOperand, Just rightOperand, Just destOperand ] ->
+            JustRead <|
+                makeOp leftOperand
+                    rightOperand
+                    destOperand
+
+        [ _, _, _ ] ->
+            valuesErr errString
+                (List.length modes)
+                model.point
+
+        _ ->
+            modesErr errString
+                3
+                (List.length modes)
+                model.point
+
+
+justReadFrom2 : (Operand -> Operand -> Op) -> List (Int -> Operand) -> Model -> String -> State
+justReadFrom2 makeOp modes model errString =
+    case modes |> List.reverse |> List.indexedMap (makeOperand model) of
+        [ Just inputOperand, Just destOperand ] ->
+            JustRead <|
+                makeOp inputOperand
+                    destOperand
+
+        [ _, _ ] ->
+            valuesErr errString
+                (List.length modes)
+                model.point
+
+        _ ->
+            modesErr errString
+                3
+                (List.length modes)
+                model.point
+
+
+justReadFrom1 : (Operand -> Op) -> List (Int -> Operand) -> Model -> String -> State
+justReadFrom1 makeOp modes model errString =
+    case modes |> List.reverse |> List.indexedMap (makeOperand model) of
+        [ Just destOperand ] ->
+            JustRead <|
+                makeOp
+                    destOperand
+
+        [ _ ] ->
+            valuesErr errString
+                (List.length modes)
+                model.point
+
+        _ ->
+            modesErr errString
+                1
+                (List.length modes)
+                model.point
+
+
 updateState : Model -> Parts -> State
 updateState model { opCode, modes } =
     case opCode of
@@ -233,207 +323,28 @@ updateState model { opCode, modes } =
                     Error "Done but could not get value at 0"
 
         AddCode ->
-            case modes of
-                [ dest, right, left ] ->
-                    case
-                        ( Array.get (model.point + 1) model.tape |> Maybe.map (cellToInt >> left)
-                        , Array.get (model.point + 2) model.tape |> Maybe.map (cellToInt >> right)
-                        , Array.get (model.point + 3) model.tape |> Maybe.map (cellToInt >> dest)
-                        )
-                    of
-                        ( Just leftOperand, Just rightOperand, Just destOperand ) ->
-                            JustRead <|
-                                Add leftOperand
-                                    rightOperand
-                                    destOperand
-
-                        ( _, _, _ ) ->
-                            Error <|
-                                "could not get three values after point during ADD"
-                                    ++ String.fromInt model.point
-
-                _ ->
-                    Error <|
-                        "Not enough modes for ADD at"
-                            ++ String.fromInt model.point
-                            ++ ", need 3 got "
-                            ++ (modes |> List.length |> String.fromInt)
+            justReadFrom3 Add modes model "ADD"
 
         MulCode ->
-            case modes of
-                [ dest, right, left ] ->
-                    case
-                        ( Array.get (model.point + 1) model.tape |> Maybe.map (cellToInt >> left)
-                        , Array.get (model.point + 2) model.tape |> Maybe.map (cellToInt >> right)
-                        , Array.get (model.point + 3) model.tape |> Maybe.map (cellToInt >> dest)
-                        )
-                    of
-                        ( Just leftOperand, Just rightOperand, Just destOperand ) ->
-                            JustRead <|
-                                Mul leftOperand
-                                    rightOperand
-                                    destOperand
-
-                        ( _, _, _ ) ->
-                            Error <|
-                                "could not get three values after point during MUL"
-                                    ++ String.fromInt model.point
-
-                _ ->
-                    Error <|
-                        "Not enough modes for MUL at"
-                            ++ String.fromInt model.point
-                            ++ ", need 3 got "
-                            ++ (modes |> List.length |> String.fromInt)
+            justReadFrom3 Mul modes model "MUL"
 
         InputCode ->
-            case modes of
-                [ dest ] ->
-                    case
-                        Array.get (model.point + 1) model.tape |> Maybe.map (cellToInt >> dest)
-                    of
-                        Just destOperand ->
-                            JustRead <|
-                                Input (Immediate 5) destOperand
-
-                        -- hard coding the input value because it's easier
-                        Nothing ->
-                            Error <|
-                                "could not get one value after point during INPUT"
-                                    ++ String.fromInt model.point
-
-                _ ->
-                    Error <|
-                        "Not enough modes for INPUT at"
-                            ++ String.fromInt model.point
-                            ++ ", need 1 got "
-                            ++ (modes |> List.length |> String.fromInt)
+            justReadFrom1 (Input (Immediate 5)) modes model "INPUT"
 
         OutputCode ->
-            case modes of
-                [ source ] ->
-                    case
-                        Array.get (model.point + 1) model.tape |> Maybe.map (cellToInt >> source)
-                    of
-                        Just sourceOperand ->
-                            JustRead <|
-                                Output sourceOperand
-
-                        Nothing ->
-                            Error <|
-                                "could not get one value after point during OUTPUT"
-                                    ++ String.fromInt model.point
-
-                _ ->
-                    Error <|
-                        "Not enough modes for OUTPUT at"
-                            ++ String.fromInt model.point
-                            ++ ", need 1 got "
-                            ++ (modes |> List.length |> String.fromInt)
+            justReadFrom1 Output modes model "OUTPUT"
 
         JnzCode ->
-            case modes of
-                [ newPoint, input ] ->
-                    case
-                        ( Array.get (model.point + 1) model.tape |> Maybe.map (cellToInt >> input)
-                        , Array.get (model.point + 2) model.tape |> Maybe.map (cellToInt >> newPoint)
-                        )
-                    of
-                        ( Just inputOperand, Just newPointOperand ) ->
-                            JustRead <|
-                                JNZ inputOperand
-                                    newPointOperand
-
-                        ( _, _ ) ->
-                            Error <|
-                                "could not get 2 values after point during JNZ"
-                                    ++ String.fromInt model.point
-
-                _ ->
-                    Error <|
-                        "Not enough modes for JNZ at "
-                            ++ String.fromInt model.point
-                            ++ ", need 2 got "
-                            ++ (modes |> List.length |> String.fromInt)
+            justReadFrom2 JNZ modes model "JNZ"
 
         JzCode ->
-            case modes of
-                [ newPoint, input ] ->
-                    case
-                        ( Array.get (model.point + 1) model.tape |> Maybe.map (cellToInt >> input)
-                        , Array.get (model.point + 2) model.tape |> Maybe.map (cellToInt >> newPoint)
-                        )
-                    of
-                        ( Just inputOperand, Just newPointOperand ) ->
-                            JustRead <|
-                                JZ inputOperand
-                                    newPointOperand
-
-                        ( _, _ ) ->
-                            Error <|
-                                "could not get 2 values after point during JNZ"
-                                    ++ String.fromInt model.point
-
-                _ ->
-                    Error <|
-                        "Not enough modes for JZ at"
-                            ++ String.fromInt model.point
-                            ++ ", need 2 got "
-                            ++ (modes |> List.length |> String.fromInt)
+            justReadFrom2 JZ modes model "JZ"
 
         LtCode ->
-            case modes of
-                [ dest, right, left ] ->
-                    case
-                        ( Array.get (model.point + 1) model.tape |> Maybe.map (cellToInt >> left)
-                        , Array.get (model.point + 2) model.tape |> Maybe.map (cellToInt >> right)
-                        , Array.get (model.point + 3) model.tape |> Maybe.map (cellToInt >> dest)
-                        )
-                    of
-                        ( Just leftOperand, Just rightOperand, Just destOperand ) ->
-                            JustRead <|
-                                Lt leftOperand
-                                    rightOperand
-                                    destOperand
-
-                        ( _, _, _ ) ->
-                            Error <|
-                                "could not get three values after point during LT"
-                                    ++ String.fromInt model.point
-
-                _ ->
-                    Error <|
-                        "Not enough modes for LT at"
-                            ++ String.fromInt model.point
-                            ++ ", need 3 got "
-                            ++ (modes |> List.length |> String.fromInt)
+            justReadFrom3 Lt modes model "LT"
 
         EqCode ->
-            case modes of
-                [ dest, right, left ] ->
-                    case
-                        ( Array.get (model.point + 1) model.tape |> Maybe.map (cellToInt >> left)
-                        , Array.get (model.point + 2) model.tape |> Maybe.map (cellToInt >> right)
-                        , Array.get (model.point + 3) model.tape |> Maybe.map (cellToInt >> dest)
-                        )
-                    of
-                        ( Just leftOperand, Just rightOperand, Just destOperand ) ->
-                            JustRead <|
-                                Eq leftOperand
-                                    rightOperand
-                                    destOperand
-
-                        ( _, _, _ ) ->
-                            Error <|
-                                "could not get three values after point during LT"
-                                    ++ String.fromInt model.point
-
-                _ ->
-                    Error <|
-                        "Not enough modes for GQ at"
-                            ++ String.fromInt model.point
-                            ++ ", need 3 got "
-                            ++ (modes |> List.length |> String.fromInt)
+            justReadFrom3 Eq modes model "EQ"
 
         UnknownCode n ->
             Error <| "unknown op code " ++ String.fromInt n
