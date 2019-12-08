@@ -36,6 +36,7 @@ type alias Model =
     , state : State
     , outputs : List ( Operand, Int )
     , runState : RunState
+    , input : String
     }
 
 
@@ -55,6 +56,7 @@ initialModel =
     , state = Start
     , outputs = []
     , runState = Pause
+    , input = ""
     }
 
 
@@ -153,6 +155,7 @@ type Msg
     = Tick Time.Posix
     | Step
     | ToggleRun
+    | UpdateInput String
 
 
 type State
@@ -329,7 +332,12 @@ updateState model { opCode, modes } =
             justReadFrom3 Mul modes model "MUL"
 
         InputCode ->
-            justReadFrom1 (Input (Immediate 5)) modes model "INPUT"
+            case String.toInt model.input |> Maybe.map (Immediate >> Input) of
+                Just i ->
+                    justReadFrom1 i modes model "INPUT"
+
+                Nothing ->
+                    model.state
 
         OutputCode ->
             justReadFrom1 Output modes model "OUTPUT"
@@ -581,20 +589,26 @@ stepModel model =
 
 update : Msg -> Model -> ( Model, Cmd msg )
 update msg model =
-    case ( msg, model.runState ) of
-        ( Tick _, Play ) ->
-            ( stepModel model, Cmd.none )
+    case ( msg, model.runState, model.input |> String.toInt ) of
+        ( UpdateInput input, _, _ ) ->
+            ( { model | input = input }, Cmd.none )
 
-        ( Tick _, Pause ) ->
-            ( model, Cmd.none )
-
-        ( Step, _ ) ->
-            ( stepModel model, Cmd.none )
-
-        ( ToggleRun, Play ) ->
+        ( _, _, Nothing ) ->
             ( { model | runState = Pause }, Cmd.none )
 
-        ( ToggleRun, Pause ) ->
+        ( Tick _, Play, Just _ ) ->
+            ( stepModel model, Cmd.none )
+
+        ( Tick _, Pause, Just _ ) ->
+            ( model, Cmd.none )
+
+        ( Step, _, Just _ ) ->
+            ( stepModel model, Cmd.none )
+
+        ( ToggleRun, Play, Just _ ) ->
+            ( { model | runState = Pause }, Cmd.none )
+
+        ( ToggleRun, Pause, Just _ ) ->
             ( { model | runState = Play }, Cmd.none )
 
 
@@ -788,30 +802,6 @@ viewProcessor ( tape, viewCellForPoint ) =
         |> H.div [ HA.class "tape" ]
 
 
-stateCanContinue : State -> Bool
-stateCanContinue s =
-    case s of
-        Done _ ->
-            True
-
-        Error _ ->
-            True
-
-        _ ->
-            False
-
-
-modelsCanContinue : List Model -> Bool
-modelsCanContinue =
-    List.any (.state >> stateCanContinue)
-
-
-viewMany : List Model -> Html Msg
-viewMany models =
-    H.div [] <|
-        List.map view models
-
-
 printOutput : ( Operand, Int ) -> String
 printOutput ( o, int ) =
     "(" ++ printOperand o ++ ", " ++ String.fromInt int ++ ")"
@@ -822,6 +812,16 @@ printStrings s =
     (List.length s |> String.fromInt)
         ++ ": "
         ++ String.join ", " s
+
+
+maybeToBoolean : Maybe a -> Bool
+maybeToBoolean m =
+    case m of
+        Just _ ->
+            True
+
+        Nothing ->
+            False
 
 
 view : Model -> Html Msg
@@ -837,10 +837,14 @@ view model =
         ]
         [ H.div []
             [ H.button
-                [ HE.onClick Step ]
+                [ HE.onClick Step
+                , HA.disabled <| not <| maybeToBoolean <| String.toInt model.input
+                ]
                 [ H.text "step" ]
             , H.button
-                [ HE.onClick ToggleRun ]
+                [ HE.onClick ToggleRun
+                , HA.disabled <| not <| maybeToBoolean <| String.toInt model.input
+                ]
                 [ H.text <|
                     case model.runState of
                         Play ->
@@ -849,6 +853,14 @@ view model =
                         Pause ->
                             "play"
                 ]
+            , H.label [ HA.for "input" ] [ H.text "(For part 1 use 1, for part 2 use 5) Input: " ]
+            , H.input
+                [ HE.onClick ToggleRun
+                , HA.value model.input
+                , HA.id "input"
+                , HE.onInput UpdateInput
+                ]
+                []
             ]
         , H.div [] [ printState model.state |> H.text ]
         , H.div []
