@@ -15,8 +15,9 @@ To run these I'm just doing `elm reactor`, but you can check them out in Ellie b
 4. Part 1 <https://ellie-app.com/7pTWm9tvYZta1> Part 2 which also solves 1 without all that parsing: <https://ellie-app.com/7pTVkDcqJsca1>
 5. Both <https://ellie-app.com/7qZYh78CnfBa1>
   really need to update the display to only highlight relevant cells but I have a feeling we'll come back to this
+6. Not yet
 7. Not yet
-8. Solved it in REPL, may make a file for it.
+8. <https://ellie-app.com/7sgSmvhn42Qa1>
 9. https://ellie-app.com/7s68TGXmKWxa1 Had to make it run faster (100k recursions per cycle) so I cannot render memory while it is running.
 
 To be continued
