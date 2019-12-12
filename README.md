@@ -16,11 +16,12 @@ To run these I'm just doing `elm reactor`, but you can check them out in Ellie b
 4. Part 1 <https://ellie-app.com/7pTWm9tvYZta1> Part 2 which also solves 1 without all that parsing: <https://ellie-app.com/7pTVkDcqJsca1>
 5. Both <https://ellie-app.com/7qZYh78CnfBa1>
   really need to update the display to only highlight relevant cells but I have a feeling we'll come back to this
-6. Not yet
+6. <https://ellie-app.com/7sV3BswXv8Xa1> Cannot believe how much I overthought this
 7. Not yet
 8. <https://ellie-app.com/7sgSmvhn42Qa1>
 9. <https://ellie-app.com/7s68TGXmKWxa1> Had to make it run faster (100k recursions per cycle) so I cannot render memory while it is running.
 10. Not yet
 11. <https://ellie-app.com/7sKFHT6hDLpa1> Only part 2 runs in Ellie, part 1 passes the maximum stack call size, kind of interesting.
+12. Not yet
 
 To be continued
