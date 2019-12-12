@@ -1,7 +1,8 @@
 # Elm "solutions" to Advent of Code 2019
 
 [Advent of Code 2019](https://adventofcode.com/2019) is out and I'm giving
-it a shot in Elm
+it a shot in Elm. I'm going as slow as I want because this is supposed to be fun
+and what's NOT fun is being glued to my computer with people around me.
 
 You didn't think procedural Elm was possible well I did it on day 2, so deal with it.
 
@@ -18,6 +19,8 @@ To run these I'm just doing `elm reactor`, but you can check them out in Ellie b
 6. Not yet
 7. Not yet
 8. <https://ellie-app.com/7sgSmvhn42Qa1>
-9. https://ellie-app.com/7s68TGXmKWxa1 Had to make it run faster (100k recursions per cycle) so I cannot render memory while it is running.
+9. <https://ellie-app.com/7s68TGXmKWxa1> Had to make it run faster (100k recursions per cycle) so I cannot render memory while it is running.
+10. Not yet
+11. <https://ellie-app.com/7sKFHT6hDLpa1> Only part 2 runs in Ellie, part 1 passes the maximum stack call size, kind of interesting.
 
 To be continued
