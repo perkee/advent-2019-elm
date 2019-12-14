@@ -17,7 +17,7 @@ To run these I'm just doing `elm reactor`, but you can check them out in Ellie b
 5. Both <https://ellie-app.com/7qZYh78CnfBa1>
   really need to update the display to only highlight relevant cells but I have a feeling we'll come back to this
 6. <https://ellie-app.com/7sV3BswXv8Xa1> Cannot believe how much I overthought this
-7. Not yet
+7. Part 1 <https://ellie-app.com/7tR9NVgzzYBa1>
 8. <https://ellie-app.com/7sgSmvhn42Qa1>
 9. <https://ellie-app.com/7s68TGXmKWxa1> Had to make it run faster (100k recursions per cycle) so I cannot render memory while it is running.
 10. Not yet
