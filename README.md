@@ -23,5 +23,6 @@ To run these I'm just doing `elm reactor`, but you can check them out in Ellie b
 10. Not yet
 11. <https://ellie-app.com/7sKFHT6hDLpa1> Only part 2 runs in Ellie, part 1 passes the maximum stack call size, kind of interesting.
 12. Not yet
+13. Part 1 <https://ellie-app.com/7tSc7NSbsGTa1>
 
 To be continued
