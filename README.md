@@ -20,7 +20,7 @@ To run these I'm just doing `elm reactor`, but you can check them out in Ellie b
 7. Part 1 <https://ellie-app.com/7tR9NVgzzYBa1>
 8. <https://ellie-app.com/7sgSmvhn42Qa1>
 9. <https://ellie-app.com/7s68TGXmKWxa1> Had to make it run faster (100k recursions per cycle) so I cannot render memory while it is running.
-10. Not yet
+10. Both parts <https://ellie-app.com/7vnqXCX8887a1>
 11. <https://ellie-app.com/7sKFHT6hDLpa1> Only part 2 runs in Ellie, part 1 passes the maximum stack call size, kind of interesting.
 12. Not yet
 13. Part 1 <https://ellie-app.com/7tSc7NSbsGTa1>

@@ -1,8 +1,12 @@
 module Ten exposing (main)
 
-import Browser
 import Html as H exposing (Html)
 import Set exposing (Set)
+
+
+filterMap : (comparable -> Maybe comparable1) -> Set comparable -> Set comparable1
+filterMap fn =
+    Set.toList >> List.filterMap fn >> Set.fromList
 
 
 type CoprimeTree
@@ -50,14 +54,6 @@ input =
     .#.#.............#.#....#...........
     ..#...#.###...##....##.#.#.#....#.#.
     """
-        -- """
-        -- -#--#
-        -- -----
-        -- #####
-        -- ----#
-        -- ---##
-        -- """
-        -- [Log] slopes that hit from(3, 4): Set.fromList [(-4,1),(-2,-3),(-2,-1),(-2,1),(-1,-1),(-1,1)] (Ten.elm, line 523)
         |> String.trim
         |> String.split "\n"
         |> List.map (String.trim >> String.split "")
@@ -134,33 +130,41 @@ slopes =
         |> Set.fromList
 
 
-slopeLeavesSpaceFromThisPoint : ( Int, Int ) -> ( Int, Int ) -> Int -> Bool
-slopeLeavesSpaceFromThisPoint ( y, x ) ( rise, run ) n =
+projectionIsOutOfSpace : ( Int, Int ) -> Bool
+projectionIsOutOfSpace ( y, x ) =
+    (y < 0) || (y > 35) || (x < 0) || (x > 35)
+
+
+type alias SlopeToPoint =
+    { slope : ( Int, Int )
+    , projection : ( Int, Int )
+    }
+
+
+thisSlopeHitsAnyPoint : Set ( Int, Int ) -> ( Int, Int ) -> ( Int, Int ) -> Maybe SlopeToPoint
+thisSlopeHitsAnyPoint points ( y, x ) ( rise, run ) =
     let
-        dy =
-            rise * n
+        slope =
+            ( rise, run )
 
-        dx =
-            run * n
+        projection =
+            ( y - rise, x + run )
     in
-    ((y + dy) < 0) || ((y + dy) > 36) || ((x + dx) < 0) || ((x + dx) > 36)
+    if projectionIsOutOfSpace projection then
+        Nothing
 
-
-thisSlopeHitsAnyPoint : Int -> Set ( Int, Int ) -> ( Int, Int ) -> ( Int, Int ) -> Bool
-thisSlopeHitsAnyPoint n points ( y, x ) ( rise, run ) =
-    if slopeLeavesSpaceFromThisPoint ( y, x ) ( rise, run ) n then
-        False
+    else if Set.member projection points then
+        Just <| SlopeToPoint slope projection
 
     else
-        Set.member ( y + rise * n, x + run * n ) points || thisSlopeHitsAnyPoint (n + 1) points ( y, x ) ( rise, run )
+        thisSlopeHitsAnyPoint points projection slope
 
 
-howManySlopesHitFromHere : Set ( Int, Int ) -> Set ( Int, Int ) -> ( Int, Int ) -> ( Int, Int, Int )
-howManySlopesHitFromHere s points ( y, x ) =
+whichSlopesHitFromHere : Set ( Int, Int ) -> Set ( Int, Int ) -> ( Int, Int ) -> ( Int, Int, List SlopeToPoint )
+whichSlopesHitFromHere s points ( y, x ) =
     ( y
     , x
-    , Set.filter (thisSlopeHitsAnyPoint 1 points ( y, x )) s
-        |> Set.size
+    , s |> Set.toList |> List.sortBy slopeToAngle |> List.filterMap (thisSlopeHitsAnyPoint points ( y, x ))
     )
 
 
@@ -169,15 +173,65 @@ third ( _, _, c ) =
     c
 
 
+slopeToAngle : ( Int, Int ) -> Float
+slopeToAngle ( rise, run ) =
+    atan2 (toFloat run) (toFloat rise) |> normalize
+
+
+normalize : Float -> Float
+normalize n =
+    case ( n < 0, n > 2 * pi ) of
+        ( True, _ ) ->
+            normalize <| n + (2 * pi)
+
+        ( _, True ) ->
+            normalize <| n - (2 * pi)
+
+        ( _, _ ) ->
+            n
+
+
+nthSlopeFromPoint : Int -> ( Int, Int, List SlopeToPoint ) -> Maybe SlopeToPoint
+nthSlopeFromPoint n ( _, _, s ) =
+    s
+        |> List.drop (n - 1)
+        |> List.head
+
+
 main : Html Never
 main =
     let
         pointsWithSlopes =
-            List.map (howManySlopesHitFromHere slopes <| Set.fromList input) input |> List.sortBy third |> List.reverse
-    in
-    case List.head pointsWithSlopes of
-        Just ( y, x, n ) ->
-            "From (" ++ String.fromInt x ++ ", " ++ String.fromInt y ++ ") you can see " ++ String.fromInt n ++ " other asteroids." |> H.text
+            List.map (whichSlopesHitFromHere slopes <| Set.fromList input) input |> List.sortBy (third >> List.length) |> List.reverse
 
-        Nothing ->
+        observationPoint =
+            List.head pointsWithSlopes
+
+        twoHundredth =
+            observationPoint |> Maybe.andThen (nthSlopeFromPoint 200)
+    in
+    case ( observationPoint, twoHundredth ) of
+        ( Just ( y, x, n ), Just { projection, slope } ) ->
+            "From ("
+                ++ String.fromInt x
+                ++ ", "
+                ++ String.fromInt y
+                ++ ") you can see "
+                ++ (String.fromInt <| List.length n)
+                ++ " other asteroids. After blasting 200 times you vaporize ("
+                ++ (String.fromInt <|
+                        Tuple.second projection
+                   )
+                ++ ", "
+                ++ (String.fromInt <|
+                        Tuple.first projection
+                   )
+                ++ ") by following slope {"
+                ++ (String.fromInt <| Tuple.first slope)
+                ++ " / "
+                ++ (String.fromInt <| Tuple.second slope)
+                ++ "}"
+                |> H.text
+
+        ( _, _ ) ->
             "There is no good point?" |> H.text
