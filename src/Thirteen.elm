@@ -7,6 +7,7 @@ import Html as H
 import Html.Events as HE
 import Json.Decode as JD
 import Keyboard as K
+import Keyboard.Arrows as KA
 import Keyboard.Events as KE
 
 
@@ -138,6 +139,7 @@ flattenCell _ =
 type Msg
     = ProvideInput Int
     | Undo
+    | KeyboardMsg K.Msg
 
 
 type State
@@ -685,10 +687,10 @@ isBlock ( _, t ) =
 tileToChar : Maybe Int -> Char
 tileToChar i =
     Dict.fromList
-        [ ( 1, '+' )
-        , ( 2, '#' )
-        , ( 3, '#' )
-        , ( 4, 'o' )
+        [ ( 1, '▓' )
+        , ( 2, '░' )
+        , ( 3, '▓' )
+        , ( 4, '♦' )
         ]
         |> Dict.get (Maybe.withDefault 0 i)
         |> Maybe.withDefault ' '
@@ -716,7 +718,7 @@ view model =
                 |> Maybe.map String.fromInt
                 |> Maybe.withDefault "no score"
                 |> H.text
-            , H.text " blocks left: "
+            , H.text " Initial blocks: "
             , List.foldl
                 (\( _, t ) count ->
                     if t == 2 then
@@ -729,6 +731,8 @@ view model =
                 tiles
                 |> String.fromInt
                 |> H.text
+            , H.text " Undo moves left: "
+            , List.length model.saves |> String.fromInt |> H.text
             ]
         , pix
             |> Dict.remove ( -1, 0 )
@@ -741,9 +745,12 @@ view model =
             |> H.pre []
         , H.div []
             [ H.button [ HE.onClick <| ProvideInput -1 ] [ H.text " < " ]
-            , H.button [ HE.onClick <| ProvideInput 0 ] [ H.text " | " ]
+            , H.button [ HE.onClick <| ProvideInput 0 ] [ H.text " ^ " ]
             , H.button [ HE.onClick <| ProvideInput 1 ] [ H.text " > " ]
             , H.button [ HE.onClick <| Undo ] [ H.text "Undo" ]
+            , H.text "or use arrows: left and right to move paddle, up to leave paddle whee it is but move forward one frame, or down to undo the last move (can undo up to 500 moves)"
+                |> List.singleton
+                |> H.p []
             ]
         ]
 
@@ -765,8 +772,11 @@ update msg model =
             in
             { model
                 | processor = newProc
-                , saves = processor :: model.saves
+                , saves = processor :: model.saves |> List.take 500 -- undo only 500
             }
+
+        ( ProvideInput _, _ ) ->
+            model
 
         ( Undo, _ ) ->
             case List.head model.saves of
@@ -778,8 +788,28 @@ update msg model =
                 Nothing ->
                     model
 
-        ( _, _ ) ->
-            model
+        ( KeyboardMsg keebMsg, _ ) ->
+            case KA.arrowsDirection <| K.update keebMsg [] of
+                KA.West ->
+                    update (ProvideInput -1) model
+
+                KA.East ->
+                    update (ProvideInput 1) model
+
+                KA.North ->
+                    update (ProvideInput 0) model
+
+                KA.South ->
+                    update Undo model
+
+                _ ->
+                    let
+                        _ =
+                            K.update keebMsg []
+                                |> KA.arrowsDirection
+                                |> Debug.log "unknown arrow case"
+                    in
+                    model
 
 
 type alias Model =
@@ -788,13 +818,26 @@ type alias Model =
     }
 
 
+subscriptions : Model -> Sub Msg
+subscriptions _ =
+    Sub.map KeyboardMsg K.subscriptions
+
+
+andNone : x -> ( x, Cmd msg )
+andNone x =
+    ( x, Cmd.none )
+
+
 main : Program () Model Msg
 main =
-    Browser.sandbox
+    Browser.element
         { init =
-            { processor = makeProcessor 2 |> toInput
-            , saves = []
-            }
-        , update = update
+            \_ ->
+                { processor = makeProcessor 2 |> toInput
+                , saves = []
+                }
+                    |> andNone
+        , update = compose2 update andNone
         , view = view
+        , subscriptions = subscriptions
         }
