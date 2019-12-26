@@ -19,7 +19,7 @@ type alias Tape =
     Dict Int Cell
 
 
-type alias Model =
+type alias Processor =
     { point : Int
     , tape : Tape
     , state : State
@@ -137,7 +137,7 @@ flattenCell _ =
 
 type Msg
     = ProvideInput Int
-    | Reset
+    | Undo
 
 
 type State
@@ -212,7 +212,7 @@ compareToInt fn a b =
         0
 
 
-makeOperand : Model -> Int -> (Int -> Operand) -> Maybe Operand
+makeOperand : Processor -> Int -> (Int -> Operand) -> Maybe Operand
 makeOperand model index mode =
     Dict.get (model.point + index + 1) model.tape |> Maybe.map (cellToInt >> mode)
 
@@ -241,7 +241,7 @@ modesErr errString shouldLength length point =
             ++ (length |> String.fromInt)
 
 
-justReadFrom3 : (Operand -> Operand -> Operand -> Op) -> List (Int -> Operand) -> Model -> String -> State
+justReadFrom3 : (Operand -> Operand -> Operand -> Op) -> List (Int -> Operand) -> Processor -> String -> State
 justReadFrom3 makeOp modes model errString =
     case modes |> List.reverse |> List.indexedMap (makeOperand model) of
         [ Just leftOperand, Just rightOperand, Just destOperand ] ->
@@ -262,7 +262,7 @@ justReadFrom3 makeOp modes model errString =
                 model.point
 
 
-justReadFrom2 : (Operand -> Operand -> Op) -> List (Int -> Operand) -> Model -> String -> State
+justReadFrom2 : (Operand -> Operand -> Op) -> List (Int -> Operand) -> Processor -> String -> State
 justReadFrom2 makeOp modes model errString =
     case modes |> List.reverse |> List.indexedMap (makeOperand model) of
         [ Just inputOperand, Just destOperand ] ->
@@ -282,7 +282,7 @@ justReadFrom2 makeOp modes model errString =
                 model.point
 
 
-justReadFrom1 : (Operand -> Op) -> List (Int -> Operand) -> Model -> String -> State
+justReadFrom1 : (Operand -> Op) -> List (Int -> Operand) -> Processor -> String -> State
 justReadFrom1 makeOp modes model errString =
     case modes |> List.reverse |> List.indexedMap (makeOperand model) of
         [ Just destOperand ] ->
@@ -302,7 +302,7 @@ justReadFrom1 makeOp modes model errString =
                 model.point
 
 
-updateState : Model -> Parts -> State
+updateState : Processor -> Parts -> State
 updateState model { opCode, modes } =
     case opCode of
         DoneCode ->
@@ -339,7 +339,7 @@ updateState model { opCode, modes } =
             Error <| "unknown op code " ++ String.fromInt n
 
 
-read : Model -> Model
+read : Processor -> Processor
 read model =
     case Dict.get model.point model.tape |> Maybe.map (cellToInt >> intToParts >> updateState model) of
         Just state ->
@@ -422,7 +422,7 @@ toPositional base o =
             o
 
 
-execute : Op -> Model -> Model
+execute : Op -> Processor -> Processor
 execute op model =
     case op of
         Add left right dest ->
@@ -520,8 +520,8 @@ execute op model =
                     }
 
 
-stepModel : Model -> Model
-stepModel model =
+stepProcessor : Processor -> Processor
+stepProcessor model =
     case model.state of
         Start ->
             read model
@@ -594,7 +594,7 @@ compose2 first second a =
     first a >> second
 
 
-toDone : Model -> Maybe (List Int)
+toDone : Processor -> Maybe (List Int)
 toDone m =
     case m.state of
         Done n ->
@@ -604,10 +604,10 @@ toDone m =
             Nothing
 
         _ ->
-            m |> stepModel |> toDone
+            m |> stepProcessor |> toDone
 
 
-toInput : Model -> Model
+toInput : Processor -> Processor
 toInput m =
     case m.state of
         AwaitInput _ ->
@@ -620,11 +620,11 @@ toInput m =
             m
 
         _ ->
-            m |> stepModel |> toInput
+            m |> stepProcessor |> toInput
 
 
-makeModel : Int -> Model
-makeModel input =
+makeProcessor : Int -> Processor
+makeProcessor input =
     { point = 0
     , tape =
         inputTape input
@@ -698,7 +698,7 @@ view : Model -> H.Html Msg
 view model =
     let
         tiles =
-            model.outputs
+            model.processor.outputs
                 |> outputsToTiles []
 
         pix =
@@ -743,29 +743,58 @@ view model =
             [ H.button [ HE.onClick <| ProvideInput -1 ] [ H.text " < " ]
             , H.button [ HE.onClick <| ProvideInput 0 ] [ H.text " | " ]
             , H.button [ HE.onClick <| ProvideInput 1 ] [ H.text " > " ]
-            , H.button [ HE.onClick <| Reset ] [ H.text "reset" ]
+            , H.button [ HE.onClick <| Undo ] [ H.text "Undo" ]
             ]
         ]
 
 
 update : Msg -> Model -> Model
 update msg model =
-    case ( msg, model.state ) of
+    case ( msg, model.processor.state ) of
         ( ProvideInput n, AwaitInput modes ) ->
-            { model | inputs = n :: model.inputs, state = GotInput modes }
-                |> toInput
+            let
+                processor =
+                    model.processor
 
-        ( Reset, _ ) ->
-            makeModel 2 |> toInput
+                newProc =
+                    { processor
+                        | inputs = n :: processor.inputs
+                        , state = GotInput modes
+                    }
+                        |> toInput
+            in
+            { model
+                | processor = newProc
+                , saves = processor :: model.saves
+            }
+
+        ( Undo, _ ) ->
+            case List.head model.saves of
+                Just p ->
+                    { processor = p
+                    , saves = List.drop 1 model.saves
+                    }
+
+                Nothing ->
+                    model
 
         ( _, _ ) ->
             model
 
 
+type alias Model =
+    { processor : Processor
+    , saves : List Processor
+    }
+
+
 main : Program () Model Msg
 main =
     Browser.sandbox
-        { init = makeModel 2 |> toInput
+        { init =
+            { processor = makeProcessor 2 |> toInput
+            , saves = []
+            }
         , update = update
         , view = view
         }
