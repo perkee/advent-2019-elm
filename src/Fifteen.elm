@@ -4,6 +4,7 @@ import Browser
 import Dict exposing (Dict)
 import DictGraphics as DG
 import Html as H
+import Html.Attributes as HA
 import Html.Events as HE
 import Json.Decode as JD
 import Keyboard as K
@@ -459,7 +460,8 @@ execute op model =
                         (getInt model.tape model.relativeBase input)
                         (toPositional model.relativeBase dest)
                         JustComputed
-                , inputs = model.inputs |> List.drop 1
+
+                -- , inputs = model.inputs |> List.drop 1
                 , point = model.point + 2
             }
 
@@ -524,38 +526,87 @@ execute op model =
                     }
 
 
+type Distance
+    = FromOrigin Int
+    | FromOriginAndOxygen Int Int
+    | NoDistance
+
+
 type Substrate
     = Wall
-    | Floor Int
-    | Oxygen
-    | Origin
+    | Floor Distance
+    | Oxygen Distance
+    | Origin Distance
     | Droid
 
 
-substrateToDistance : Substrate -> Maybe Int
+substrateToDistance : Substrate -> Distance
 substrateToDistance s =
     case s of
-        Floor n ->
-            Just n
+        Floor d ->
+            d
 
-        Origin ->
-            Just 0
+        Origin d ->
+            d
+
+        Oxygen d ->
+            d
 
         _ ->
-            Nothing
+            NoDistance
 
 
-distance : ( Int, Int ) -> Dict ( Int, Int ) Substrate -> Int
+distanceToInts : Distance -> ( Maybe Int, Maybe Int )
+distanceToInts d =
+    case d of
+        FromOrigin n ->
+            ( Just n, Nothing )
+
+        FromOriginAndOxygen n m ->
+            ( Just n, Just m )
+
+        NoDistance ->
+            ( Nothing, Nothing )
+
+
+distance : ( Int, Int ) -> Dict ( Int, Int ) Substrate -> Distance
 distance ( x, y ) outputs =
-    [ Dict.get ( x - 1, y ) outputs
-    , Dict.get ( x + 1, y ) outputs
-    , Dict.get ( x, y - 1 ) outputs
-    , Dict.get ( x, y + 1 ) outputs
-    ]
-        |> List.filterMap (Maybe.andThen substrateToDistance)
-        |> List.minimum
-        |> Maybe.withDefault -1
-        |> (+) 1
+    let
+        fromOrigin =
+            case
+                Dict.get ( x, y ) outputs
+                    |> Maybe.map substrateToDistance
+            of
+                Just (FromOrigin n) ->
+                    Just n
+
+                _ ->
+                    Nothing
+
+        neighbors =
+            [ Dict.get ( x - 1, y ) outputs
+            , Dict.get ( x + 1, y ) outputs
+            , Dict.get ( x, y - 1 ) outputs
+            , Dict.get ( x, y + 1 ) outputs
+            ]
+                |> List.filterMap
+                    (Maybe.map (substrateToDistance >> distanceToInts))
+
+        fromOrigins =
+            neighbors |> List.filterMap Tuple.first |> List.minimum
+
+        fromOxygens =
+            neighbors |> List.filterMap Tuple.second |> List.minimum
+    in
+    case ( fromOrigins, fromOxygens ) of
+        ( Just n, Just m ) ->
+            FromOriginAndOxygen (n + 1) (m + 1)
+
+        ( Just n, Nothing ) ->
+            FromOrigin (n + 1)
+
+        ( Nothing, _ ) ->
+            NoDistance
 
 
 stepProcessor : Processor -> Processor
@@ -596,7 +647,8 @@ stepProcessor processor =
                                 modes
                                 processor
                                 "INPUT"
-                        , inputs = List.drop 1 processor.inputs
+
+                        --, inputs = List.drop 1 processor.inputs
                     }
 
                 Nothing ->
@@ -631,8 +683,12 @@ stepProcessor processor =
                             processor.outputs
                                 |> Dict.insert
                                     processor.newLocation
-                                    (Floor <| distance processor.newLocation processor.outputs)
-                                |> Dict.insert ( 0, 0 ) Origin
+                                    (Floor <|
+                                        distance
+                                            processor.newLocation
+                                            processor.outputs
+                                    )
+                                |> Dict.insert ( 0, 0 ) (Origin <| FromOrigin 0)
                         , currentLocation = processor.newLocation
                     }
                         |> read
@@ -641,7 +697,11 @@ stepProcessor processor =
                     { processor
                         | outputs =
                             Dict.insert processor.newLocation
-                                Oxygen
+                                (Oxygen <|
+                                    distance
+                                        processor.newLocation
+                                        processor.outputs
+                                )
                                 processor.outputs
                         , currentLocation = processor.newLocation
                     }
@@ -708,56 +768,851 @@ makeProcessor input =
     , state = Start
     , outputs = Dict.empty
     , relativeBase = 0
-    , inputs = []
+    , inputs =
+        [ 4
+        , 3
+        , 3
+        , 4
+        , 4
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 4
+        , 4
+        , 4
+        , 4
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 3
+        , 3
+        , 3
+        , 3
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 2
+        , 2
+        , 2
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 1
+        , 1
+        , 1
+        , 1
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 2
+        , 2
+        , 2
+        , 3
+        , 3
+        , 3
+        , 2
+        , 2
+        , 2
+        , 4
+        , 4
+        , 4
+        , 2
+        , 2
+        , 4
+        , 4
+        , 2
+        , 2
+        , 4
+        , 4
+        , 2
+        , 2
+        , 1
+        , 4
+        , 4
+        , 4
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 1
+        , 1
+        , 1
+        , 1
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 3
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 3
+        , 3
+        , 3
+        , 3
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 2
+        , 3
+        , 4
+        , 2
+        , 1
+        , 1
+        , 1
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 4
+        , 4
+        , 3
+        , 3
+        , 1
+        , 1
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 3
+        , 3
+        , 3
+        , 3
+        , 1
+        , 1
+        , 1
+        , 3
+        , 3
+        , 3
+        , 2
+        , 3
+        , 3
+        , 3
+        , 3
+        , 2
+        , 2
+        , 2
+        , 2
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 1
+        , 1
+        , 1
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 2
+        , 2
+        , 2
+        , 2
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 1
+        , 1
+        , 1
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 1
+        , 1
+        , 1
+        , 1
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 1
+        , 1
+        , 4
+        , 4
+        , 1
+        , 1
+        , 4
+        , 4
+        , 1
+        , 1
+        , 3
+        , 3
+        , 1
+        , 1
+        , 4
+        , 4
+        , 1
+        , 1
+        , 4
+        , 4
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 3
+        , 3
+        , 3
+        , 3
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 3
+        , 3
+        , 3
+        , 3
+        , 2
+        , 3
+        , 4
+        , 1
+        , 4
+        , 4
+        , 4
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 3
+        , 3
+        , 3
+        , 3
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 1
+        , 1
+        , 1
+        , 1
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 2
+        , 1
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 3
+        , 3
+        , 3
+        , 3
+        , 1
+        , 1
+        , 1
+        , 1
+        , 2
+        , 2
+        , 4
+        , 4
+        , 4
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 3
+        , 3
+        , 3
+        , 3
+        , 1
+        , 3
+        , 3
+        , 3
+        , 2
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 2
+        , 2
+        , 2
+        , 2
+        , 4
+        , 4
+        , 4
+        , 4
+        , 2
+        , 2
+        , 2
+        , 2
+        , 3
+        , 3
+        , 3
+        , 3
+        , 2
+        , 2
+        , 2
+        , 2
+        , 3
+        , 3
+        , 3
+        , 2
+        , 2
+        , 3
+        , 3
+        , 3
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 3
+        , 3
+        , 3
+        , 3
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 3
+        , 3
+        , 3
+        , 3
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 4
+        , 2
+        , 2
+        , 2
+        , 3
+        , 3
+        , 3
+        , 3
+        , 2
+        , 2
+        , 2
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 4
+        , 4
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 2
+        , 3
+        , 3
+        , 3
+        , 3
+        , 3
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 2
+        , 2
+        , 2
+        , 1
+        , 1
+        , 1
+        , 2
+        , 2
+        , 1
+        , 1
+        , 2
+        , 2
+        , 2
+        , 2
+        , 1
+        , 1
+        , 1
+        , 1
+        , 2
+        , 2
+        , 2
+        ]
     , currentLocation = ( 0, 0 )
     , newLocation = ( 0, 0 )
     }
 
 
-
--- ty https://rtoal.github.io/ple/resources/book-replacement-pages/new-elm-chapter.pdf
-
-
-insertEverywhere : a -> List a -> List (List a)
-insertEverywhere x xs =
-    case xs of
-        [] ->
-            [ [ x ] ]
-
-        y :: ys ->
-            (x :: y :: ys) :: List.map ((::) y) (insertEverywhere x ys)
-
-
-permutations : List a -> List (List a)
-permutations =
-    List.foldr (List.concatMap << insertEverywhere) [ [] ]
-
-
-pairWithInput : (a -> b) -> a -> ( a, b )
-pairWithInput fn a =
-    ( a, fn a )
-
-
-tileToChar : Maybe Substrate -> Char
-tileToChar i =
+tileToCell : Maybe Substrate -> H.Html msg
+tileToCell i =
     case i of
         Just Wall ->
-            '▓'
+            H.td [ HA.style "background-color" "black" ] []
 
-        Just (Floor _) ->
-            '░'
+        Just (Floor d) ->
+            H.td [ HA.style "background-color" "white" ]
+                [ d |> Debug.toString |> H.text ]
 
-        Just Oxygen ->
-            'O'
+        Just (Oxygen d) ->
+            H.td [ HA.style "background-color" "blue" ]
+                [ (d |> Debug.toString |> (++) "O") |> H.text ]
 
         Just Droid ->
-            'x'
+            H.td [ HA.style "background-color" "grey" ]
+                [ "\u{1F916}" |> H.text ]
 
-        Just Origin ->
-            '+'
+        Just (Origin d) ->
+            H.td [ HA.style "background-color" "red" ]
+                [ (d |> Debug.toString |> (++) "+") |> H.text ]
 
         Nothing ->
-            '?'
+            H.td [ HA.style "background-color" "lightgrey" ]
+                [ "?" |> H.text ]
 
 
 view : Model -> H.Html Msg
@@ -770,6 +1625,12 @@ view model =
     H.div
         []
         [ H.div []
+            [ " [ "
+                ++ (model.processor.inputs |> List.map String.fromInt |> String.join ", ")
+                ++ " ] "
+                |> H.text
+            ]
+        , H.div []
             [ ("Current location ("
                 ++ (model.processor.currentLocation
                         |> Tuple.first
@@ -792,8 +1653,7 @@ view model =
                    )
                 ++ ") Distance: "
                 ++ (Dict.get model.processor.currentLocation model.processor.outputs
-                        |> Maybe.andThen substrateToDistance
-                        |> Maybe.map String.fromInt
+                        |> Maybe.map (substrateToDistance >> Debug.toString)
                         |> Maybe.withDefault "no distance??"
                    )
               )
@@ -802,12 +1662,11 @@ view model =
         , pix
             |> DG.toMatrix
             |> List.map
-                (List.map tileToChar >> String.fromList)
+                (List.map tileToCell >> H.tr [])
             |> List.reverse
-            |> String.join "\n"
-            |> H.text
+            |> H.tbody []
             |> List.singleton
-            |> H.pre []
+            |> H.table []
         , H.div []
             [ H.button [ HE.onClick <| ProvideInput 3 ] [ H.text " < " ]
             , H.button [ HE.onClick <| ProvideInput 2 ] [ H.text " v " ]
@@ -818,6 +1677,7 @@ view model =
                 |> List.singleton
                 |> H.p []
             ]
+        , H.node "style" [] [ H.text "td {min-width: 26px}" ]
         ]
 
 
@@ -831,7 +1691,6 @@ directionToDeltas n =
         |> Dict.fromList
         |> Dict.get n
         |> Maybe.withDefault ( 0, 0 )
-        |> Debug.log "got deltas"
 
 
 update : Msg -> Model -> Model
